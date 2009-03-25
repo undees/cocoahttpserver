@@ -7,64 +7,11 @@
 #import "HTTPServer.h"
 #import "HTTPResponse.h"
 
+#ifdef BROMINE_ENABLED
+#import "ScriptRunner.h"
+#endif
 
 @implementation MyHTTPConnection
-
-/**
- * Returns whether or not the requested resource is browseable.
-**/
-- (BOOL)isBrowseable:(NSString *)path
-{
-	// Override me to provide custom configuration...
-	// You can configure it for the entire server, or based on the current request
-	
-	return YES;
-}
-
-/**
- * This method creates a html browseable page.
- * Customize to fit your needs
-**/
-- (NSString *) createBrowseableIndex:(NSString *)path
-{
-    NSArray *array = [[NSFileManager defaultManager] directoryContentsAtPath:path];
-    
-    NSMutableString *outdata = [NSMutableString new];
-	[outdata appendString:@"<html><head>"];
-	[outdata appendFormat:@"<title>Files from %@</title>", server.name];
-    [outdata appendString:@"<style>html {background-color:#eeeeee} body { background-color:#FFFFFF; font-family:Tahoma,Arial,Helvetica,sans-serif; font-size:18x; margin-left:15%; margin-right:15%; border:3px groove #006600; padding:15px; } </style>"];
-    [outdata appendString:@"</head><body>"];
-	[outdata appendFormat:@"<h1>Files from %@</h1>", server.name];
-    [outdata appendString:@"<bq>The following files are hosted live from the iPhone's Docs folder.</bq>"];
-    [outdata appendString:@"<p>"];
-	[outdata appendFormat:@"<a href=\"..\">..</a><br />\n"];
-    for (NSString *fname in array)
-    {
-        NSDictionary *fileDict = [[NSFileManager defaultManager] fileAttributesAtPath:[path stringByAppendingPathComponent:fname] traverseLink:NO];
-		//NSLog(@"fileDict: %@", fileDict);
-        NSString *modDate = [[fileDict objectForKey:NSFileModificationDate] description];
-		if ([[fileDict objectForKey:NSFileType] isEqualToString: @"NSFileTypeDirectory"]) fname = [fname stringByAppendingString:@"/"];
-		[outdata appendFormat:@"<a href=\"%@\">%@</a>		(%8.1f Kb, %@)<br />\n", fname, fname, [[fileDict objectForKey:NSFileSize] floatValue] / 1024, modDate];
-    }
-    [outdata appendString:@"</p>"];
-	
-	if ([self supportsPOST:path withSize:0])
-	{
-		[outdata appendString:@"<form action=\"\" method=\"post\" enctype=\"multipart/form-data\" name=\"form1\" id=\"form1\">"];
-		[outdata appendString:@"<label>upload file"];
-		[outdata appendString:@"<input type=\"file\" name=\"file\" id=\"file\" />"];
-		[outdata appendString:@"</label>"];
-		[outdata appendString:@"<label>"];
-		[outdata appendString:@"<input type=\"submit\" name=\"button\" id=\"button\" value=\"Submit\" />"];
-		[outdata appendString:@"</label>"];
-		[outdata appendString:@"</form>"];
-	}
-	
-	[outdata appendString:@"</body></html>"];
-    
-	//NSLog(@"outData: %@", outdata);
-    return [outdata autorelease];
-}
 
 /**
  * Returns whether or not the server will accept POSTs.
@@ -75,7 +22,7 @@
 //	NSLog(@"POST:%@", path);
 	
 	dataStartIndex = 0;
-	multipartData = [[NSMutableArray alloc] init];
+	multipartData = [[NSMutableData alloc] init];
 	postHeaderOK = FALSE;
 	
 	return YES;
@@ -90,68 +37,50 @@
 **/
 - (NSObject<HTTPResponse> *)httpResponseForURI:(NSString *)path
 {
-//	NSLog(@"httpResponseForURI: %@", path);
-	
 	if (postContentLength > 0)		//process POST data
 	{
 		NSLog(@"processing post data: %i", postContentLength);
+		NSString *contents = [[[NSString alloc] initWithData:multipartData encoding:NSUTF8StringEncoding] autorelease];
+		NSLog(contents);
+
+#ifdef BROMINE_ENABLED
+		ScriptRunner *runner = [[ScriptRunner alloc] init];
 		
-		NSString* postInfo = [[NSString alloc] initWithBytes:[[multipartData objectAtIndex:1] bytes] length:[[multipartData objectAtIndex:1] length] encoding:NSUTF8StringEncoding];
-		NSArray* postInfoComponents = [postInfo componentsSeparatedByString:@"; filename="];
-		postInfoComponents = [[postInfoComponents lastObject] componentsSeparatedByString:@"\""];
-		postInfoComponents = [[postInfoComponents objectAtIndex:1] componentsSeparatedByString:@"\\"];
-		NSString* filename = [postInfoComponents lastObject];
+		[runner runCommandStep:multipartData];
 		
-		if (![filename isEqualToString:@""]) //this makes sure we did not submitted upload form without selecting file
-		{
-			UInt16 separatorBytes = 0x0A0D;
-			NSMutableData* separatorData = [NSMutableData dataWithBytes:&separatorBytes length:2];
-			[separatorData appendData:[multipartData objectAtIndex:0]];
-			int l = [separatorData length];
-			int count = 2;	//number of times the separator shows up at the end of file data
-			
-			NSFileHandle* dataToTrim = [multipartData lastObject];
-			NSLog(@"data: %@", dataToTrim);
-			
-			for (unsigned long long i = [dataToTrim offsetInFile] - l; i > 0; i--)
-			{
-				[dataToTrim seekToFileOffset:i];
-				if ([[dataToTrim readDataOfLength:l] isEqualToData:separatorData])
-				{
-					[dataToTrim truncateFileAtOffset:i];
-					i -= l;
-					if (--count == 0) break;
-				}
-			}
-			
-			NSLog(@"NewFileUploaded");
-			[[NSNotificationCenter defaultCenter] postNotificationName:@"NewFileUploaded" object:nil];
-		}
+		[runner release];
 		
-		for (int n = 1; n < [multipartData count] - 1; n++)
-			NSLog(@"%@", [[NSString alloc] initWithBytes:[[multipartData objectAtIndex:n] bytes] length:[[multipartData objectAtIndex:n] length] encoding:NSUTF8StringEncoding]);
+//		NSData *resultData =
+//		[NSPropertyListSerialization
+//		 dataFromPropertyList:keyWindowDescription
+//		 format:NSPropertyListXMLFormat_v1_0
+//		 errorDescription:nil];
 		
-		[postInfo release];
+//		NSMutableString *result = [[[NSMutableString alloc] initWithData:resultData encoding:NSUTF8StringEncoding] autorelease];
+//		[result replaceOccurrencesOfString: @"<" withString: @"&lt;" options: 0 range: NSMakeRange (0, [result length])];
+		NSMutableString *result = @"Fancy scripting mode";
+#else
+		NSMutableString *result = @"Not running in the fancy scripting mode";
+#endif
+
+		NSMutableString *outdata = [NSMutableString new];
+		
+		[outdata appendString:@"<html><head>"];
+		[outdata appendFormat:@"<title>Hello from %@</title>", server.name];
+		[outdata appendString:@"<style>html {background-color:#FFFFFF} body { background-color:#FFFFFF; font-family:Tahoma,Arial,Helvetica,sans-serif; font-size:18x; margin-left:15%; margin-right:15%; padding:15px; } </style>"];
+		[outdata appendString:@"</head><body>"];
+		[outdata appendFormat:@"<h1>Hello from %@</h1>", server.name];
+		[outdata appendString:@"<pre>"];
+		[outdata appendString:result];
+		[outdata appendString:@"</pre></body></html>"];
+		
+		[outdata autorelease];
+		
 		[multipartData release];
 		postContentLength = 0;
-		
-	}
-	
-	NSString *filePath = [self filePathForURI:path];
-	
-	if([[NSFileManager defaultManager] fileExistsAtPath:filePath])
-	{
-		return [[[HTTPFileResponse alloc] initWithFilePath:filePath] autorelease];
-	}
-	else
-	{
-		NSString *folder = [path isEqualToString:@"/"] ? [[server documentRoot] path] : [NSString stringWithFormat: @"%@%@", [[server documentRoot] path], path];
-		if ([self isBrowseable:folder])
-		{
-			//NSLog(@"folder: %@", folder);
-			NSData *browseData = [[self createBrowseableIndex:folder] dataUsingEncoding:NSUTF8StringEncoding];
-			return [[[HTTPDataResponse alloc] initWithData:browseData] autorelease];
-		}
+
+		NSData *browseData = [outdata dataUsingEncoding:NSUTF8StringEncoding];
+		return [[[HTTPDataResponse alloc] initWithData:browseData] autorelease];
 	}
 	
 	return nil;
@@ -163,67 +92,7 @@
 **/
 - (void)processPostDataChunk:(NSData *)postDataChunk
 {
-	// Override me to do something useful with a POST.
-	// If the post is small, such as a simple form, you may want to simply append the data to the request.
-	// If the post is big, such as a file upload, you may want to store the file to disk.
-	// 
-	// Remember: In order to support LARGE POST uploads, the data is read in chunks.
-	// This prevents a 50 MB upload from being stored in RAM.
-	// The size of the chunks are limited by the POST_CHUNKSIZE definition.
-	// Therefore, this method may be called multiple times for the same POST request.
-	
-	//NSLog(@"processPostDataChunk");
-	
-	if (!postHeaderOK)
-	{
-		UInt16 separatorBytes = 0x0A0D;
-		NSData* separatorData = [NSData dataWithBytes:&separatorBytes length:2];
-		
-		int l = [separatorData length];
-		for (int i = 0; i < [postDataChunk length] - l; i++)
-		{
-			NSRange searchRange = {i, l};
-			if ([[postDataChunk subdataWithRange:searchRange] isEqualToData:separatorData])
-			{
-				NSRange newDataRange = {dataStartIndex, i - dataStartIndex};
-				dataStartIndex = i + l;
-				i += l - 1;
-				NSData *newData = [postDataChunk subdataWithRange:newDataRange];
-				if ([newData length])
-				{
-					[multipartData addObject:newData];
-					
-				}
-				else
-				{
-					postHeaderOK = TRUE;
-					
-					NSString* postInfo = [[NSString alloc] initWithBytes:[[multipartData objectAtIndex:1] bytes] length:[[multipartData objectAtIndex:1] length] encoding:NSUTF8StringEncoding];
-					NSArray* postInfoComponents = [postInfo componentsSeparatedByString:@"; filename="];
-					postInfoComponents = [[postInfoComponents lastObject] componentsSeparatedByString:@"\""];
-					postInfoComponents = [[postInfoComponents objectAtIndex:1] componentsSeparatedByString:@"\\"];
-					NSString* filename = [[[server documentRoot] path] stringByAppendingPathComponent:[postInfoComponents lastObject]];
-					NSRange fileDataRange = {dataStartIndex, [postDataChunk length] - dataStartIndex};
-					
-					[[NSFileManager defaultManager] createFileAtPath:filename contents:[postDataChunk subdataWithRange:fileDataRange] attributes:nil];
-					NSFileHandle *file = [[NSFileHandle fileHandleForUpdatingAtPath:filename] retain];
-					if (file)
-					{
-						[file seekToEndOfFile];
-						[multipartData addObject:file];
-					}
-					
-					[postInfo release];
-					
-					break;
-				}
-			}
-		}
-	}
-	else
-	{
-		[(NSFileHandle*)[multipartData lastObject] writeData:postDataChunk];
-	}
+	[multipartData appendData:postDataChunk];
 }
 
 @end
