@@ -45,42 +45,17 @@
 
 #ifdef BROMINE_ENABLED
 		ScriptRunner *runner = [[ScriptRunner alloc] init];
-		
 		[runner runCommandStep:multipartData];
-		
+		NSString *result = [runner response];
 		[runner release];
-		
-//		NSData *resultData =
-//		[NSPropertyListSerialization
-//		 dataFromPropertyList:keyWindowDescription
-//		 format:NSPropertyListXMLFormat_v1_0
-//		 errorDescription:nil];
-		
-//		NSMutableString *result = [[[NSMutableString alloc] initWithData:resultData encoding:NSUTF8StringEncoding] autorelease];
-//		[result replaceOccurrencesOfString: @"<" withString: @"&lt;" options: 0 range: NSMakeRange (0, [result length])];
-		NSMutableString *result = @"Fancy scripting mode";
-#else
-		NSMutableString *result = @"Not running in the fancy scripting mode";
-#endif
 
-		NSMutableString *outdata = [NSMutableString new];
-		
-		[outdata appendString:@"<html><head>"];
-		[outdata appendFormat:@"<title>Hello from %@</title>", server.name];
-		[outdata appendString:@"<style>html {background-color:#FFFFFF} body { background-color:#FFFFFF; font-family:Tahoma,Arial,Helvetica,sans-serif; font-size:18x; margin-left:15%; margin-right:15%; padding:15px; } </style>"];
-		[outdata appendString:@"</head><body>"];
-		[outdata appendFormat:@"<h1>Hello from %@</h1>", server.name];
-		[outdata appendString:@"<pre>"];
-		[outdata appendString:result];
-		[outdata appendString:@"</pre></body></html>"];
-		
-		[outdata autorelease];
-		
+		NSData *browseData = [result dataUsingEncoding:NSUTF8StringEncoding];
+		return [[[HTTPDataResponse alloc] initWithData:browseData] autorelease];
+#else
+		return nil;
+#endif
 		[multipartData release];
 		postContentLength = 0;
-
-		NSData *browseData = [outdata dataUsingEncoding:NSUTF8StringEncoding];
-		return [[[HTTPDataResponse alloc] initWithData:browseData] autorelease];
 	}
 	
 	return nil;
