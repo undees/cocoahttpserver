@@ -7,11 +7,23 @@
 #import "HTTPServer.h"
 #import "HTTPResponse.h"
 
-#ifdef BROMINE_ENABLED
-#import "ScriptRunner.h"
-#endif
-
 @implementation MyHTTPConnection
+
+static NSObject *ourObserver = nil;
+
++ (void)setSharedObserver:(NSObject*)observer
+{
+	if (observer == ourObserver)
+		return;
+
+	[ourObserver release];
+	ourObserver = [observer retain];
+}
+
++ (id)sharedObserver
+{
+	return ourObserver;
+}
 
 /**
  * Returns whether or not the server will accept POSTs.
@@ -43,17 +55,20 @@
 		NSString *contents = [[[NSString alloc] initWithData:multipartData encoding:NSUTF8StringEncoding] autorelease];
 		NSLog(contents);
 
-#ifdef BROMINE_ENABLED
-		ScriptRunner *runner = [[ScriptRunner alloc] init];
-		[runner runCommandStep:multipartData];
-		NSString *result = [runner response];
-		[runner release];
+		NSObject *observer = [MyHTTPConnection sharedObserver];
+		if (observer)
+		{
+			[observer performSelector:@selector(runCommandStep:) withObject:multipartData];
+			NSString *result = [observer performSelector:@selector(response)];
 
-		NSData *browseData = [result dataUsingEncoding:NSUTF8StringEncoding];
-		return [[[HTTPDataResponse alloc] initWithData:browseData] autorelease];
-#else
-		return nil;
-#endif
+			NSData *browseData = [result dataUsingEncoding:NSUTF8StringEncoding];
+			return [[[HTTPDataResponse alloc] initWithData:browseData] autorelease];
+		}
+		else
+		{
+			return nil;
+		}
+
 		[multipartData release];
 		postContentLength = 0;
 	}

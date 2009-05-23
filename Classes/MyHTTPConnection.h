@@ -13,4 +13,7 @@
 	BOOL postHeaderOK;
 }
 
++ (void)setSharedObserver:(NSObject*)observer;
++ (id)sharedObserver;
+
 @end
