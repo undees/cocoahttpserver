@@ -62,9 +62,7 @@ static NSObject *ourObserver = nil;
 	if (!observer)
 		return nil;
 
-	[observer performSelector:@selector(runCommandStep:) withObject:(self.multipartData)];
-	NSString *response = [observer performSelector:@selector(response)];
-
+	NSString* response = [observer performSelector:@selector(runCommandStep:) withObject:(self.multipartData)];
 	self.multipartData = nil;
 	postContentLength = 0;
 
