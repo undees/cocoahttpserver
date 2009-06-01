@@ -9,6 +9,8 @@
 
 @implementation MyHTTPConnection
 
+@synthesize multipartData;
+
 static NSObject *ourObserver = nil;
 
 + (void)setSharedObserver:(NSObject*)observer
@@ -34,7 +36,7 @@ static NSObject *ourObserver = nil;
 //	NSLog(@"POST:%@", path);
 	
 	dataStartIndex = 0;
-	multipartData = [[NSMutableData alloc] init];
+	self.multipartData = [[[NSMutableData alloc] init] autorelease];
 	postHeaderOK = FALSE;
 	
 	return YES;
@@ -49,31 +51,25 @@ static NSObject *ourObserver = nil;
 **/
 - (NSObject<HTTPResponse> *)httpResponseForURI:(NSString *)path
 {
-	if (postContentLength > 0)		//process POST data
-	{
-		NSLog(@"processing post data: %i", postContentLength);
-		NSString *contents = [[[NSString alloc] initWithData:multipartData encoding:NSUTF8StringEncoding] autorelease];
-		NSLog(contents);
+	if (0 == postContentLength)
+		return nil;
 
-		NSObject *observer = [MyHTTPConnection sharedObserver];
-		if (observer)
-		{
-			[observer performSelector:@selector(runCommandStep:) withObject:multipartData];
-			NSString *result = [observer performSelector:@selector(response)];
+	NSLog(@"processing post data: %i", postContentLength);
+	NSString *contents = [[[NSString alloc] initWithData:(self.multipartData) encoding:NSUTF8StringEncoding] autorelease];
+	NSLog(contents);
 
-			NSData *browseData = [result dataUsingEncoding:NSUTF8StringEncoding];
-			return [[[HTTPDataResponse alloc] initWithData:browseData] autorelease];
-		}
-		else
-		{
-			return nil;
-		}
+	NSObject *observer = [MyHTTPConnection sharedObserver];
+	if (!observer)
+		return nil;
 
-		[multipartData release];
-		postContentLength = 0;
-	}
-	
-	return nil;
+	[observer performSelector:@selector(runCommandStep:) withObject:(self.multipartData)];
+	NSString *response = [observer performSelector:@selector(response)];
+
+	self.multipartData = nil;
+	postContentLength = 0;
+
+	NSData *browseData = [response dataUsingEncoding:NSUTF8StringEncoding];
+	return [[[HTTPDataResponse alloc] initWithData:browseData] autorelease];
 }
 
 /**
@@ -82,7 +78,7 @@ static NSObject *ourObserver = nil;
 **/
 - (void)processPostDataChunk:(NSData *)postDataChunk
 {
-	[multipartData appendData:postDataChunk];
+	[self.multipartData appendData:postDataChunk];
 }
 
 @end

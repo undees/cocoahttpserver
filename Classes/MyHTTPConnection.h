@@ -16,4 +16,6 @@
 + (void)setSharedObserver:(NSObject*)observer;
 + (id)sharedObserver;
 
+@property(nonatomic, retain) NSMutableData* multipartData;
+
 @end
